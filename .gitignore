@@ -42,6 +42,8 @@ build/Release
 node_modules/
 jspm_packages/
 secret.json
+*.json
+temp-google-credentials.json
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

@@ -3,10 +3,15 @@
 // Imports the Google Cloud client library
 const textToSpeech = require("@google-cloud/text-to-speech");
 const fs = require("fs");
+require("dotenv").config();
 const util = require("util");
 const path = require("path");
 const client = new textToSpeech.TextToSpeechClient({
-  keyFilename: "/Users/nguyenhonghiep/Desktop/Hie/utils/secret.json",
+  credentials: {
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+  },
+  projectId: process.env.GOOGLE_PROJECT_ID,
 });
 async function GetAudio(text, filename) {
   // The text to synthesize
