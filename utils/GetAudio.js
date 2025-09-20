@@ -1,30 +1,30 @@
 /** @format */
 
 // Imports the AWS SDK for Polly
-// Configuration is loaded from config/secret.json
+// Configuration is loaded from environment variables
 const {
   PollyClient,
   SynthesizeSpeechCommand,
 } = require("@aws-sdk/client-polly");
 const fs = require("fs");
+require("dotenv").config();
 const util = require("util");
 const path = require("path");
-const config = require("../config/config");
 
 const client = new PollyClient({
-  region: config.aws.region,
+  region: process.env.AWS_REGION || "us-east-1",
   credentials: {
-    accessKeyId: config.aws.accessKeyId,
-    secretAccessKey: config.aws.secretAccessKey,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
 });
 async function GetAudio(text, filename) {
   // The text to synthesize using AWS Polly
   const params = {
     Text: text,
-    OutputFormat: config.polly.outputFormat,
-    VoiceId: config.polly.voiceId,
-    Engine: config.polly.engine,
+    OutputFormat: process.env.AWS_POLLY_OUTPUT_FORMAT || "mp3",
+    VoiceId: process.env.AWS_POLLY_VOICE_ID || "Joanna",
+    Engine: process.env.AWS_POLLY_ENGINE || "standard",
   };
 
   const sanitizedFilename = filename.replace(/[^a-z0-9]/gi, "_").toLowerCase();
