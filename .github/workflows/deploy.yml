@@ -56,11 +56,11 @@ jobs:
             sudo rm -rf /var/www/flenbe-backup
             sudo mv /var/www/flenbe /var/www/flenbe-backup || true
             echo "✅ Backed up previous version"
-            
+
             # Clone fresh code from GitHub to temp directory first
             rm -rf ~/flenbe-temp
             git clone https://github.com/${{ github.repository }}.git ~/flenbe-temp
-            
+
             # Move to final location with proper permissions
             sudo rm -rf /var/www/flenbe
             sudo mv ~/flenbe-temp /var/www/flenbe
