@@ -38,23 +38,7 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18.x"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm install --production
-
-      - name: Create deployment package
-        run: |
-          zip -r deploy.zip . -x "*.git*" "node_modules/.cache/*" "*.md"
-
-      - name: Deploy to EC2
+      - name: Deploy to EC2 via Git Clone
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -62,46 +46,25 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
           script: |
+            echo "🚀 Starting deployment..."
+
             # Stop existing application
-            sudo systemctl stop flenbe || true
+            pm2 delete flenbe || true
+            echo "✅ Stopped existing application"
 
             # Backup current version
             sudo rm -rf /var/www/flenbe-backup
             sudo mv /var/www/flenbe /var/www/flenbe-backup || true
+            echo "✅ Backed up previous version"
 
-            # Create new directory
-            sudo mkdir -p /var/www/flenbe
-            sudo chown $USER:$USER /var/www/flenbe
-
-      - name: Copy files to EC2
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          source: "."
-          target: "/var/www/flenbe"
-          rm: true
-          exclude: |
-            .git
-            .github
-            node_modules/.cache
-            *.md
-            .env.example
-
-      - name: Setup and start application
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          script: |
+            # Clone fresh code from GitHub
+            git clone https://github.com/${{ github.repository }}.git /var/www/flenbe
             cd /var/www/flenbe
+            echo "✅ Cloned fresh code"
 
             # Install dependencies
             npm install --production
+            echo "✅ Installed dependencies"
 
             # Create environment file from secrets
             cat > .env << EOF
@@ -120,19 +83,27 @@ jobs:
             EMAIL_USER=${{ secrets.EMAIL_USER }}
             EMAIL_PASS=${{ secrets.EMAIL_PASS }}
             EOF
+            echo "✅ Created environment file"
 
             # Set correct permissions
-            sudo chown -R $USER:$USER /var/www/flenbe
             chmod 600 .env
+            sudo chown -R $USER:$USER /var/www/flenbe
+            echo "✅ Set permissions"
+
+            # Install PM2 if not exists
+            which pm2 || npm install -g pm2
 
             # Start application with PM2
-            npm install -g pm2
-            pm2 delete flenbe || true
             pm2 start bin/www --name flenbe
             pm2 save
-            pm2 startup
+            echo "✅ Started application with PM2"
 
-            # Setup nginx (if needed)
-            sudo systemctl reload nginx || true
+            # Reload nginx if exists
+            sudo systemctl reload nginx || echo "⚠️ Nginx not found, skipping reload"
 
-            echo "✅ Deployment completed successfully!"
+            echo ""
+            echo "🎉 Deployment completed successfully!"
+            echo "📊 Application status:"
+            pm2 status
+            echo ""
+            echo "🌐 Application should be running on port ${{ secrets.PORT || '3000' }}"
