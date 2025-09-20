@@ -1,6 +1,6 @@
 /** @format */
 
-const transporter = require("./ConfigEmail");
+const transporter = require("@/config/ConfigEmail");
 const SendEmail = async ({ html, to, subject }) => {
   await transporter.sendMail({
     from: "EngLish FlashCard ",

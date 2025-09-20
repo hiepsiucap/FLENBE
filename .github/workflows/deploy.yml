@@ -1,0 +1,136 @@
+# @format
+
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests (if any)
+        run: npm test --if-present
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --production
+
+      - name: Create deployment package
+        run: |
+          zip -r deploy.zip . -x "*.git*" "node_modules/.cache/*" "*.md"
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          script: |
+            # Stop existing application
+            sudo systemctl stop flenbe || true
+
+            # Backup current version
+            sudo rm -rf /var/www/flenbe-backup
+            sudo mv /var/www/flenbe /var/www/flenbe-backup || true
+
+            # Create new directory
+            sudo mkdir -p /var/www/flenbe
+            sudo chown $USER:$USER /var/www/flenbe
+
+      - name: Copy files to EC2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          source: "."
+          target: "/var/www/flenbe"
+          rm: true
+          exclude: |
+            .git
+            .github
+            node_modules/.cache
+            *.md
+            .env.example
+
+      - name: Setup and start application
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          script: |
+            cd /var/www/flenbe
+
+            # Install dependencies
+            npm install --production
+
+            # Create environment file from secrets
+            cat > .env << EOF
+            PORT=${{ secrets.PORT }}
+            MONGODB=${{ secrets.MONGODB }}
+            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+            FRONT_END_API=${{ secrets.FRONT_END_API }}
+            CLOUDINARY_NAME=${{ secrets.CLOUDINARY_NAME }}
+            CLOUDINARY_KEY=${{ secrets.CLOUDINARY_KEY }}
+            CLOUDINARY_SECRET=${{ secrets.CLOUDINARY_SECRET }}
+            GPT_KEY=${{ secrets.GPT_KEY }}
+            ACCESS_KEY_FLASHCARD=${{ secrets.ACCESS_KEY_FLASHCARD }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION=${{ secrets.AWS_REGION }}
+            EOF
+
+            # Set correct permissions
+            sudo chown -R $USER:$USER /var/www/flenbe
+            chmod 600 .env
+
+            # Start application with PM2
+            npm install -g pm2
+            pm2 delete flenbe || true
+            pm2 start bin/www --name flenbe
+            pm2 save
+            pm2 startup
+
+            # Setup nginx (if needed)
+            sudo systemctl reload nginx || true
+
+            echo "✅ Deployment completed successfully!"

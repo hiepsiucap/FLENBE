@@ -9,7 +9,7 @@ const {
 const fs = require("fs");
 const util = require("util");
 const path = require("path");
-const config = require("../config/config");
+const config = require("@/config/aws-polly-config");
 
 const client = new PollyClient({
   region: config.aws.region,
