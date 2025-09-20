@@ -11,7 +11,7 @@ const {
   CheckSave,
 } = require("../Controller/FlashCardController");
 const { authentication } = require("../Middleware/authentication");
-const fileUpLoader = require("../utils/CloudinaryCofig");
+const fileUpLoader = require("../config/cloudinary-config");
 /* GET users listing. */
 router.post("/create", authentication, CreateFlashCard);
 router.get("/bookcard/:bookid", authentication, GetAllFlashCard);
