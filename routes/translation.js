@@ -5,12 +5,21 @@ const router = express.Router();
 const {
   translateToVietnamese,
 } = require("../Controller/TranslationController");
+const { getGPTTranslation } = require("../Controller/ChatGPTController");
 
 /**
  * POST /api/translation/translate
- * Translate text to Vietnamese
+ * Translate text to Vietnamese using AWS Translate
  * Body: { text: "hello" }
  */
 router.post("/translate", translateToVietnamese);
+
+/**
+ * POST /api/translation/getgpt
+ * Get word definitions and translations using ChatGPT
+ * Body: { text: "hello" }
+ * Returns: Array of { meaning: string, type: string, definition: string }
+ */
+router.post("/getgpt", getGPTTranslation);
 
 module.exports = router;
