@@ -77,11 +77,30 @@ const CheckSave = async (req, res) => {
 };
 const GetAllFlashCard = async (req, res) => {
   const { bookid } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+
   if (!bookid) {
     throw new CustomAPIError.BadRequestError("Vui lòng cung cấp bookstore");
   }
-  const listcard = await FlashCard.find({ book: bookid });
-  return res.status(StatusCodes.OK).json({ listcard });
+
+  // Calculate skip value for pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  // Get total count of flashcards for this book
+  const total = await FlashCard.countDocuments({ book: bookid });
+
+  // Get paginated flashcards
+  const listcard = await FlashCard.find({ book: bookid })
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  return res.status(StatusCodes.OK).json({
+    listcard,
+    total,
+    page: parseInt(page),
+    limit: parseInt(limit),
+    totalPages: Math.ceil(total / parseInt(limit)),
+  });
 };
 const DeleteFlashCard = async (req, res) => {
   const { flashcardid } = req.params;
