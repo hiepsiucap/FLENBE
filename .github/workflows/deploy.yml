@@ -43,8 +43,24 @@ jobs:
 
             # Initialize git repository if needed
             if [ ! -d ".git" ]; then
-              echo "Cloning repository for the first time..."
+              echo "Initializing git repository..."
+              # Backup .env if exists
+              if [ -f ".env" ]; then
+                cp .env /tmp/.env.backup
+                echo "Backed up existing .env file"
+              fi
+              
+              # Clear directory except .env backup
+              rm -rf * .[^.]*
+              
+              # Clone repository
               git clone https://github.com/hiepsiucap/FLENBE.git .
+              
+              # Restore .env if it was backed up
+              if [ -f "/tmp/.env.backup" ]; then
+                cp /tmp/.env.backup .env
+                echo "Restored .env file"
+              fi
             else
               echo "Pulling latest changes..."
               git fetch origin
