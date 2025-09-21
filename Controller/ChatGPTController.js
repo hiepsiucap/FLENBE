@@ -27,7 +27,6 @@ const getGPTTranslation = async (req, res) => {
       );
     }
 
-    // Check text length
     if (text.length > 500) {
       throw new CustomAPIError(
         "Text is too long. Maximum length is 500 characters",
