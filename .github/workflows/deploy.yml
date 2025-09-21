@@ -1,115 +1,90 @@
 # @format
 
-name: Deploy to EC2
+name: Deploy FLENBE to EC2
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "18"
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run tests (if any)
         run: npm test --if-present
 
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-
-    steps:
-      - name: Deploy to EC2 via Git Clone
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Deploy to EC2
+        if: github.ref == 'refs/heads/main'
+        uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
           script: |
-            echo "🚀 Starting deployment..."
-
-            # Stop existing application
-            pm2 delete flenbe || true
-            echo "✅ Stopped existing application"
-
-            # Backup current version
-            sudo rm -rf /var/www/flenbe-backup
-            sudo mv /var/www/flenbe /var/www/flenbe-backup || true
-            echo "✅ Backed up previous version"
-
-            # Clone fresh code from GitHub to temp directory first
-            rm -rf ~/flenbe-temp
-            git clone https://github.com/${{ github.repository }}.git ~/flenbe-temp
-
-            # Move to final location with proper permissions
-            sudo rm -rf /var/www/flenbe
-            sudo mv ~/flenbe-temp /var/www/flenbe
-            sudo chown -R $USER:$USER /var/www/flenbe
+            # Navigate to application directory
             cd /var/www/flenbe
-            echo "✅ Cloned fresh code"
+
+            # Pull latest changes
+            git pull origin main
 
             # Install dependencies
-            npm install --production
-            echo "✅ Installed dependencies"
+            npm ci --production
 
-            # Create environment file from secrets
-            cat > .env << EOF
-            PORT=${{ secrets.PORT }}
+            # Create/update .env file with secrets
+            cat > .env << 'EOF'
+            # Database
             MONGODB=${{ secrets.MONGODB }}
+
+            # JWT
             JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
-            FRONT_END_API=${{ secrets.FRONT_END_API }}
-            CLOUDINARY_NAME=${{ secrets.CLOUDINARY_NAME }}
-            CLOUDINARY_KEY=${{ secrets.CLOUDINARY_KEY }}
-            CLOUDINARY_SECRET=${{ secrets.CLOUDINARY_SECRET }}
-            GPT_KEY=${{ secrets.GPT_KEY }}
-            ACCESS_KEY_FLASHCARD=${{ secrets.ACCESS_KEY_FLASHCARD }}
+            JWT_LIFETIME=${{ secrets.JWT_LIFETIME }}
+            JWT_REFRESH_LIFETIME=${{ secrets.JWT_REFRESH_LIFETIME }}
+
+            # AWS Configuration
             AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             AWS_REGION=${{ secrets.AWS_REGION }}
+            AWS_POLLY_VOICE_ID=${{ secrets.AWS_POLLY_VOICE_ID }}
+            AWS_POLLY_ENGINE=${{ secrets.AWS_POLLY_ENGINE }}
+            AWS_POLLY_OUTPUT_FORMAT=${{ secrets.AWS_POLLY_OUTPUT_FORMAT }}
+
+            # OpenAI/ChatGPT
+            GPT_KEY=${{ secrets.GPT_KEY }}
+
+            # Unsplash API for FlashCard images
+            ACCESS_KEY_FLASHCARD=${{ secrets.ACCESS_KEY_FLASHCARD }}
+
+            # Cloudinary
+            CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+            CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+            CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+
+            # Email Configuration
             EMAIL_USER=${{ secrets.EMAIL_USER }}
             EMAIL_PASS=${{ secrets.EMAIL_PASS }}
+
+            # Application
+            PORT=${{ secrets.PORT }}
+            FRONT_END_API=${{ secrets.FRONT_END_API }}
             EOF
-            echo "✅ Created environment file"
 
-            # Set correct permissions
-            chmod 600 .env
-            sudo chown -R $USER:$USER /var/www/flenbe
-            echo "✅ Set permissions"
+            # Restart the application using PM2
+            pm2 restart flenbe || pm2 start bin/www --name flenbe
 
-            # Install PM2 if not exists
-            which pm2 || npm install -g pm2
-
-            # Start application with PM2
-            pm2 start bin/www --name flenbe
+            # Save PM2 configuration
             pm2 save
-            echo "✅ Started application with PM2"
-
-            # Reload nginx if exists
-            sudo systemctl reload nginx || echo "⚠️ Nginx not found, skipping reload"
-
-            echo ""
-            echo "🎉 Deployment completed successfully!"
-            echo "📊 Application status:"
-            pm2 status
-            echo ""
-            echo "🌐 Application should be running on port ${{ secrets.PORT || '3000' }}"

@@ -10,23 +10,15 @@ const CreateFlashCard = async (req, res) => {
   console.log(req.body);
   const { bookId, text, meaning, example, phonetic } = req.body;
   const { user } = req;
-  const MessaegeError = [
-    {
-      name: "bookId",
-      meesage: "Please Provide BookID",
-    },
-    {
-      name: "text",
-      meesage: "Please Provide Text",
-    },
-    {
-      name: "meaning",
-      meesage: "Please Provide Meaning",
-    },
-  ].find(({ ...name }) => !name);
-  console.log(MessaegeError);
-  if (MessaegeError?.length > 0) {
-    throw new CustomAPIError.BadRequestError("Please provide info");
+  // Validate required fields
+  if (!bookId) {
+    throw new CustomAPIError.BadRequestError("Please Provide BookID");
+  }
+  if (!text) {
+    throw new CustomAPIError.BadRequestError("Please Provide Text");
+  }
+  if (!meaning) {
+    throw new CustomAPIError.BadRequestError("Please Provide Meaning");
   }
   const book = await Book.findOne({ _id: bookId, user: user.User_id });
   if (!book) {
@@ -36,11 +28,32 @@ const CreateFlashCard = async (req, res) => {
   if (temp.length > 0) {
     throw new CustomAPIError.BadRequestError("Từ vựng đã ở trong sổ từ");
   }
-  const image = await fetch(
-    `https://api.unsplash.com/search/photos?query=${text}&client_id=${process.env.ACCESS_KEY_FLASHCARD}&per_page=1`
-  );
+  let imageUrl =
+    "https://res.cloudinary.com/dhhuv7n0h/image/upload/v1729781651/English_1_ndeufk.png";
+
+  try {
+    const image = await fetch(
+      `https://api.unsplash.com/search/photos?query=${text}&client_id=${process.env.ACCESS_KEY_FLASHCARD}&per_page=1`
+    );
+
+    if (image.ok) {
+      const data = await image.json();
+      if (
+        data &&
+        data.results &&
+        data.results.length > 0 &&
+        data.results[0]?.urls?.small
+      ) {
+        imageUrl = data.results[0].urls.small;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching image from Unsplash:", error);
+    // Keep default image URL
+  }
+
   const exam = await getDefinitionAndExamples(text, example);
-  let data = await image.json();
+
   const flashcard = await FlashCard.create({
     book: bookId,
     text,
@@ -48,9 +61,7 @@ const CreateFlashCard = async (req, res) => {
     explain: example,
     example: exam,
     phonetic,
-    image:
-      data?.results[0]?.urls.small ||
-      "https://res.cloudinary.com/dhhuv7n0h/image/upload/v1729781651/English_1_ndeufk.png",
+    image: imageUrl,
   });
 
   return res.status(StatusCodes.OK).json({ flashcard });
