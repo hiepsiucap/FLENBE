@@ -18,7 +18,7 @@ router.post("/translate", translateToVietnamese);
  * POST /api/translation/getgpt
  * Get word definitions and translations using ChatGPT
  * Body: { text: "hello" }
- * Returns: Array of { meaning: string, type: string, definition: string }
+ * Returns: Array of { meaning: string (Vietnamese), type: string, definition: string (English) }
  */
 router.post("/getgpt", getGPTTranslation);
 

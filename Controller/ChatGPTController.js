@@ -37,11 +37,11 @@ const getGPTTranslation = async (req, res) => {
 
     // Create the prompt for ChatGPT
     const prompt = `
-Analyze the following text and provide 4-5 key words/phrases with their Vietnamese translations and definitions. 
+Analyze the following text and provide 4-5 key words/phrases with their Vietnamese translations and English definitions. 
 Return the response as a valid JSON array with objects containing exactly these fields:
 - meaning: Vietnamese translation
 - type: word type (noun, verb, adjective, etc.)
-- definition: detailed definition in Vietnamese
+- definition: detailed definition in English
 
 Text to analyze: "${text.trim()}"
 
