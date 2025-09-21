@@ -36,13 +36,34 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Navigate to application directory
+            # Ensure application directory exists
+            sudo mkdir -p /var/www/flenbe
+            sudo chown $USER:$USER /var/www/flenbe
             cd /var/www/flenbe
 
-            # Pull latest changes
-            git pull origin main
+            # Initialize git repository if needed
+            if [ ! -d ".git" ]; then
+              echo "Cloning repository for the first time..."
+              git clone https://github.com/hiepsiucap/FLENBE.git .
+            else
+              echo "Pulling latest changes..."
+              git fetch origin
+              git reset --hard origin/main
+            fi
 
-            # Install dependencies
+            # Ensure critical files exist
+            if [ ! -f "bin/www" ]; then
+              echo "ERROR: bin/www not found!"
+              ls -la
+              exit 1
+            fi
+
+            # Make bin/www executable
+            chmod +x bin/www
+
+            # Clean install dependencies
+            echo "Installing dependencies..."
+            rm -rf node_modules package-lock.json
             npm ci --production
 
             # Create/update .env file with secrets
@@ -83,8 +104,24 @@ jobs:
             FRONT_END_API=${{ secrets.FRONT_END_API }}
             EOF
 
-            # Restart the application using PM2
-            pm2 restart flenbe || pm2 start bin/www --name flenbe
+            # Stop existing PM2 process if running
+            pm2 stop flenbe 2>/dev/null || true
+            pm2 delete flenbe 2>/dev/null || true
 
-            # Save PM2 configuration
-            pm2 save
+            # Start the application using PM2
+            echo "Starting application with PM2..."
+            pm2 start bin/www --name flenbe
+
+            # Wait for app to start
+            sleep 3
+
+            # Verify app is running
+            if pm2 describe flenbe > /dev/null 2>&1; then
+              echo "✅ Application started successfully!"
+              pm2 save
+              pm2 status
+            else
+              echo "❌ Failed to start application!"
+              pm2 logs flenbe --lines 20
+              exit 1
+            fi
