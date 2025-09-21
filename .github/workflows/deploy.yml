@@ -74,13 +74,45 @@ jobs:
               exit 1
             fi
 
+            # Verify environment
+            echo "🔍 Environment check:"
+            node --version
+            npm --version
+            pwd
+            
+            # Verify package.json exists
+            if [ ! -f "package.json" ]; then
+              echo "❌ ERROR: package.json not found!"
+              ls -la
+              exit 1
+            fi
+            
+            echo "✅ package.json found"
+            
             # Make bin/www executable
             chmod +x bin/www
 
             # Clean install dependencies
             echo "Installing dependencies..."
             rm -rf node_modules package-lock.json
-            npm ci --production
+            npm cache clean --force
+            
+            # Install dependencies with error handling
+            if npm ci --production; then
+              echo "✅ Dependencies installed successfully"
+            else
+              echo "❌ npm ci failed, trying npm install..."
+              npm install --production
+            fi
+            
+            # Verify critical modules exist
+            if [ ! -d "node_modules" ]; then
+              echo "❌ ERROR: node_modules directory not found!"
+              exit 1
+            fi
+            
+            echo "📦 Installed packages:"
+            ls node_modules/ | head -10
 
             # Create/update .env file with secrets
             cat > .env << 'EOF'
